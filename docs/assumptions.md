@@ -48,3 +48,13 @@ Cases in the collateral pool are in one of three active stages:
 
 - Concentration limit: no single case type may exceed 60% of the borrowing base
 - Minimum collateral coverage ratio: 1.50
+
+## Additional rules and notes
+
+- Single-case concentration limit: no single case may exceed 10% of the borrowing base
+- Coverage ratio = present value of eligible collateral / outstanding balance
+- Fee units differ by type: a mass_tort or pi case is one claimant matter; a class_action
+  case is an entire matter. Synthetic portfolios therefore contain many mass_tort and pi
+  cases and only a few class actions.
+- Probabilities and durations are point estimates in the valuation engine. The Monte Carlo
+  phase will sample around them.
