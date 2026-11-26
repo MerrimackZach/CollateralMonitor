@@ -2,6 +2,7 @@
 from decimal import Decimal
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import AdvanceRate, Case, ConcentrationLimit, Facility, Firm
@@ -20,14 +21,41 @@ CONCENTRATION_LIMITS = {
     "class_action": "0.60",
     "pi": "0.60",
     "single_case": "0.10",
+    "per_jurisdiction": "0.25",
 }
+
+
+def ensure_limits(session: Session, facility_id: int) -> None:
+    """Add any concentration limits the facility is missing."""
+    existing = set(
+        session.scalars(
+            select(ConcentrationLimit.category).where(
+                ConcentrationLimit.facility_id == facility_id
+            )
+        )
+    )
+    for category, share in CONCENTRATION_LIMITS.items():
+        if category not in existing:
+            session.add(
+                ConcentrationLimit(
+                    facility_id=facility_id,
+                    category=category,
+                    max_share=Decimal(share),
+                )
+            )
 
 
 def seed() -> None:
     with SessionLocal() as session:
         for name, profile in PROFILES.items():
-            if session.scalar(select(Firm).where(Firm.name == name)):
-                print(f"{name}: already seeded, skipping")
+            firm = session.scalar(select(Firm).where(Firm.name == name))
+            if firm is not None:
+                facility = session.scalar(
+                    select(Facility).where(Facility.firm_id == firm.id)
+                )
+                ensure_limits(session, facility.id)
+                session.commit()
+                print(f"{name}: already seeded, limits checked")
                 continue
 
             firm = Firm(name=name, state=profile["state"])
@@ -51,14 +79,7 @@ def seed() -> None:
                         advance_rate=Decimal(rate),
                     )
                 )
-            for category, share in CONCENTRATION_LIMITS.items():
-                session.add(
-                    ConcentrationLimit(
-                        facility_id=facility.id,
-                        category=category,
-                        max_share=Decimal(share),
-                    )
-                )
+            ensure_limits(session, facility.id)
 
             records = generate_cases(profile["counts"], seed=profile["seed"])
             session.add_all(

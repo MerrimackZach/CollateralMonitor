@@ -75,3 +75,9 @@ Cases in the collateral pool are in one of three active stages:
 2. The coverage covenant is breached when the ratio is below the facility's minimum. Exactly at the minimum is not a breach.
 3. If nothing is outstanding, the ratio is undefined and there is no breach.
 4. Borrowing base deficiency = max(0, outstanding balance - borrowing base). Commitment is not considered here.
+
+## Jurisdiction cap
+
+- Per-jurisdiction cap: no one jurisdiction may count for more than 25% of total present value.
+- Order of caps: ineligible case types removed, then single-case cap, then jurisdiction cap, then case-type cap.
+- A jurisdiction over its cap has every case in it reduced by the same percentage.

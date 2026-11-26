@@ -96,3 +96,65 @@ def test_empty_portfolio():
 def test_mismatched_lengths_raise():
     with pytest.raises(ValueError):
         run(vals=VALS[:2])
+
+
+def make_in(case_type, jurisdiction):
+    return CaseInput(
+        case_type=case_type,
+        stage="discovery",
+        filed_date=date(2024, 1, 1),
+        projected_fee=Decimal("1"),
+        jurisdiction=jurisdiction,
+    )
+
+
+PI_ONLY = {"pi": Decimal("0.5")}
+
+
+def test_jurisdiction_cap_shrinks_over_cap_jurisdictions():
+    cases = [make_in("pi", "NY"), make_in("pi", "NY"), make_in("pi", "TX"), make_in("pi", "TX")]
+    r = run(
+        limits={"per_jurisdiction": Decimal("0.25")},
+        cases=cases,
+        vals=[val("100000")] * 4,
+        rates=PI_ONLY,
+    )
+    assert r.counted_value == Decimal("200000")
+    assert r.borrowing_base == Decimal("100000")
+    assert r.excluded_value == Decimal("200000")
+
+
+def test_jurisdiction_cap_has_no_effect_when_under_the_cap():
+    cases = [make_in("pi", "NY"), make_in("pi", "NY"), make_in("pi", "TX"), make_in("pi", "TX")]
+    r = run(
+        limits={"per_jurisdiction": Decimal("0.60")},
+        cases=cases,
+        vals=[val("100000")] * 4,
+        rates=PI_ONLY,
+    )
+    assert r.counted_value == Decimal("400000")
+    assert r.borrowing_base == Decimal("200000")
+
+
+def test_single_case_cap_applies_before_jurisdiction_cap():
+    r = run(
+        limits={"single_case": Decimal("0.50"), "per_jurisdiction": Decimal("0.40")},
+        cases=[make_in("pi", "NY"), make_in("pi", "TX")],
+        vals=[val("300000"), val("100000")],
+        rates=PI_ONLY,
+    )
+    # NY: 300k -> 200k (single-case cap) -> 160k (jurisdiction cap); TX stays 100k
+    assert r.counted_value == Decimal("260000")
+    assert r.borrowing_base == Decimal("130000")
+
+
+def test_ineligible_cases_do_not_use_up_jurisdiction_room():
+    r = run(
+        limits={"per_jurisdiction": Decimal("0.30")},
+        cases=[make_in("class_action", "NY"), make_in("pi", "NY"), make_in("pi", "TX")],
+        vals=[val("300000"), val("100000"), val("100000")],
+        rates=PI_ONLY,
+    )
+    assert r.counted_value == Decimal("200000")
+    assert r.borrowing_base == Decimal("100000")
+    assert r.excluded_value == Decimal("300000")

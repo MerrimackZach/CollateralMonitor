@@ -5,7 +5,8 @@ from engine.inputs import CaseInput
 from engine.valuation import CaseValuation
 
 CENTS = Decimal("0.01")
-SINGLE_CASE = "single_case"  # the key used for the single-case limit
+SINGLE_CASE = "single_case"  # key for the single-case limit
+PER_JURISDICTION = "per_jurisdiction"  # key for the per-jurisdiction limit
 
 
 @dataclass(frozen=True)
@@ -34,7 +35,7 @@ def compute_borrowing_base(
     commitment: Decimal,
     outstanding: Decimal,
 ) -> BorrowingBaseResult:
-    """See docs/assumptions.md, 'Borrowing base rules'."""
+    """See docs/assumptions.md, 'Borrowing base rules' and 'Jurisdiction cap'."""
     if len(cases) != len(valuations):
         raise ValueError("cases and valuations must be the same length")
 
@@ -45,34 +46,59 @@ def compute_borrowing_base(
     if SINGLE_CASE in concentration_limits:
         single_cap = concentration_limits[SINGLE_CASE] * total_pv
 
+    # Step 1: per-case counted value. Ineligible types count for nothing, and
+    # the single-case cap trims any one case that is too large.
+    counted: list[Decimal] = []
+    for case, val in zip(cases, valuations):
+        if case.case_type not in advance_rates:
+            counted.append(zero)
+        elif single_cap is not None:
+            counted.append(min(val.present_value, single_cap))
+        else:
+            counted.append(val.present_value)
+
+    # Step 2: jurisdiction cap. Every case in an over-cap jurisdiction is
+    # reduced by the same percentage.
+    if PER_JURISDICTION in concentration_limits:
+        jurisdiction_cap = concentration_limits[PER_JURISDICTION] * total_pv
+        by_jurisdiction: dict[str, Decimal] = {}
+        for case, value in zip(cases, counted):
+            by_jurisdiction[case.jurisdiction] = (
+                by_jurisdiction.get(case.jurisdiction, zero) + value
+            )
+        counted = [
+            value * jurisdiction_cap / by_jurisdiction[case.jurisdiction]
+            if by_jurisdiction[case.jurisdiction] > jurisdiction_cap
+            else value
+            for case, value in zip(cases, counted)
+        ]
+
+    # Step 3: group by case type, apply the type cap and the advance rate.
     pv_by_type: dict[str, Decimal] = {}
     counted_by_type: dict[str, Decimal] = {}
-    for case, val in zip(cases, valuations):
-        pv = val.present_value
-        counted = min(pv, single_cap) if single_cap is not None else pv
-        pv_by_type[case.case_type] = pv_by_type.get(case.case_type, zero) + pv
+    for case, val, value in zip(cases, valuations, counted):
+        pv_by_type[case.case_type] = (
+            pv_by_type.get(case.case_type, zero) + val.present_value
+        )
         counted_by_type[case.case_type] = (
-            counted_by_type.get(case.case_type, zero) + counted
+            counted_by_type.get(case.case_type, zero) + value
         )
 
     by_type: dict[str, TypeBreakdown] = {}
     total_counted = zero
     total_base = zero
     for case_type, pv in pv_by_type.items():
-        rate = advance_rates.get(case_type)
-        if rate is None:
-            counted, rate = zero, zero  # no advance rate means ineligible
-        else:
-            counted = counted_by_type[case_type]
-            if case_type in concentration_limits:
-                counted = min(counted, concentration_limits[case_type] * total_pv)
-        base = counted * rate
+        rate = advance_rates.get(case_type, zero)  # ineligible types already count 0
+        type_counted = counted_by_type[case_type]
+        if case_type in concentration_limits:
+            type_counted = min(type_counted, concentration_limits[case_type] * total_pv)
+        base = type_counted * rate
         by_type[case_type] = TypeBreakdown(
             present_value=pv.quantize(CENTS),
-            counted_value=counted.quantize(CENTS),
+            counted_value=type_counted.quantize(CENTS),
             borrowing_base=base.quantize(CENTS),
         )
-        total_counted += counted
+        total_counted += type_counted
         total_base += base
 
     borrowing_base = total_base.quantize(CENTS)
