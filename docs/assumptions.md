@@ -68,3 +68,10 @@ Cases in the collateral pool are in one of three active stages:
 5. A case type with no advance rate is ineligible and counts for nothing.
 6. Borrowing base = sum over case types of (counted value x advance rate).
 7. Available credit = max(0, min(borrowing base, commitment) - outstanding balance).
+
+## Covenant rules
+
+1. Coverage ratio = counted value (after concentration caps and eligibility) / outstanding balance.
+2. The coverage covenant is breached when the ratio is below the facility's minimum. Exactly at the minimum is not a breach.
+3. If nothing is outstanding, the ratio is undefined and there is no breach.
+4. Borrowing base deficiency = max(0, outstanding balance - borrowing base). Commitment is not considered here.
