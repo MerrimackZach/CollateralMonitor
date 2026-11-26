@@ -58,3 +58,13 @@ Cases in the collateral pool are in one of three active stages:
   cases and only a few class actions.
 - Probabilities and durations are point estimates in the valuation engine. The Monte Carlo
   phase will sample around them.
+
+## Borrowing base rules
+
+1. Each case counts at its present value.
+2. Single-case cap: a case counts for at most 10% of total present value; the excess is excluded.
+3. Case-type cap: a case type counts for at most 60% of total present value, after step 2.
+4. Both caps are measured against total present value before any exclusions (a simplification).
+5. A case type with no advance rate is ineligible and counts for nothing.
+6. Borrowing base = sum over case types of (counted value x advance rate).
+7. Available credit = max(0, min(borrowing base, commitment) - outstanding balance).
