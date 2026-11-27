@@ -22,6 +22,8 @@ Litigation portfolio collateral monitoring and valuation platform. This is built
 
 **Next:** Phase 1, SQLAlchemy models and the first Alembic migration.
 ----------------------------------------------------
+
+
 ### Day 2: Data model, valuation engine, borrowing base, and covenants
 
 **Goal:** Build the core of the platform: database schema, synthetic data, valuation, borrowing base, and covenant checks (Phases 1-3).
